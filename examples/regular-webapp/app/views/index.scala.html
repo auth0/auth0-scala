@@ -1,0 +1,28 @@
+@import helpers.Auth0Config
+
+@(config: Auth0Config)
+
+@scripts = {
+	<script src="https://cdn.auth0.com/js/lock-6.js"></script>
+	<script>
+	  var AUTH0_CLIENT_ID = '@config.clientId';
+	  var AUTH0_DOMAIN = '@config.domain';
+	  var AUTH0_CALLBACK_URL = '@config.callbackURL';
+    </script>
+    <script src="@routes.Assets.at("javascripts/app.js")"></script>
+}
+
+@main("Auth0 Play2 Scala Sample","home", scripts) {
+
+ <div class="container">
+    <div class="login-page clearfix">
+      <div class="login-box auth0-box before">
+        <img src="https://i.cloudup.com/StzWWrY34s.png" />
+        <h3>Auth0 Example</h3>
+        <p>Zero friction identity infrastructure, built for developers</p>
+        <a class="btn btn-primary btn-lg btn-login btn-block">SignIn</a>
+      </div>
+    </div>
+</div>
+
+}
