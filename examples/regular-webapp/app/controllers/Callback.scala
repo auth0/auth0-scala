@@ -17,6 +17,27 @@ import play.api.mvc.Controller
 import helpers.Auth0Config
 
 object Callback extends Controller {
+  
+  def callback(codeOpt: Option[String] = None, stateOpt: Option[String] = None) = Action.async {
+    (for {
+      code <- codeOpt
+      state <- stateOpt
+    } yield {
+      getToken(code).flatMap { case (idToken, accessToken) =>
+       getUser(accessToken).map { user =>
+          Cache.set(idToken+ "profile", user)
+          Redirect(routes.User.index())
+            .withSession(
+              "idToken" -> idToken,
+              "accessToken" -> accessToken
+            )  
+      }
+        
+      }.recover {
+        case ex: IllegalStateException => Unauthorized(ex.getMessage)
+      }  
+    }).getOrElse(Future.successful(BadRequest("No parameters supplied")))
+  }
 
   def getToken(code: String): Future[(String, String)] = {
     val config = Auth0Config.get()
@@ -50,26 +71,5 @@ object Callback extends Controller {
       .get()
 
     userResponse.flatMap(response => Future.successful(response.json))
-  }
-  
-  def callback(codeOpt: Option[String] = None, stateOpt: Option[String] = None) = Action.async {
-    (for {
-      code <- codeOpt
-      state <- stateOpt
-    } yield {
-      getToken(code).flatMap { case (idToken, accessToken) =>
-       getUser(accessToken).map { user =>
-          Cache.set(idToken+ "profile", user)
-          Redirect(routes.User.index())
-            .withSession(
-              "idToken" -> idToken,
-              "accessToken" -> accessToken
-            )  
-      }
-        
-      }.recover {
-        case ex: IllegalStateException => Unauthorized(ex.getMessage)
-      }  
-    }).getOrElse(Future.successful(BadRequest("No parameters supplied")))
   }
 }

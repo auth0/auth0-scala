@@ -9,6 +9,7 @@ dist
 .idea
 *.iml
 out
+.cache
 .idea_modules
 .classpath
 .project
