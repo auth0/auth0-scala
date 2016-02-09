@@ -18,10 +18,9 @@ import helpers.Auth0Config
 
 object Callback extends Controller {
   
-  def callback(codeOpt: Option[String] = None, stateOpt: Option[String] = None) = Action.async {
+  def callback(codeOpt: Option[String] = None) = Action.async {
     (for {
       code <- codeOpt
-      state <- stateOpt
     } yield {
       getToken(code).flatMap { case (idToken, accessToken) =>
        getUser(accessToken).map { user =>
