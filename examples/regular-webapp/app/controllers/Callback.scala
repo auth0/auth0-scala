@@ -5,7 +5,7 @@ import scala.concurrent.Future
 
 import play.api.Play
 import play.api.Play.current
-import play.api.cache.Cache
+import play.api.cache._
 import play.api.http.HeaderNames
 import play.api.http.MimeTypes
 import play.api.libs.json.JsValue
@@ -15,8 +15,12 @@ import play.api.libs.ws.WS
 import play.api.mvc.Action
 import play.api.mvc.Controller
 import helpers.Auth0Config
+import javax.inject._
+import play.api.Logger
+import play.api.libs.ws.WSClient
+import helpers.Auth0Config
 
-object Callback extends Controller {
+class Callback @Inject() (cache: CacheApi, ws:WSClient, config: Auth0Config) extends Controller {
   
   def callback(codeOpt: Option[String] = None) = Action.async {
     (for {
@@ -24,7 +28,7 @@ object Callback extends Controller {
     } yield {
       getToken(code).flatMap { case (idToken, accessToken) =>
        getUser(accessToken).map { user =>
-          Cache.set(idToken+ "profile", user)
+          cache.set(idToken+ "profile", user)
           Redirect(routes.User.index())
             .withSession(
               "idToken" -> idToken,
@@ -39,8 +43,7 @@ object Callback extends Controller {
   }
 
   def getToken(code: String): Future[(String, String)] = {
-    val config = Auth0Config.get()
-    val tokenResponse = WS.url(String.format("https://%s/oauth/token", config.domain))(Play.current).
+    val tokenResponse = ws.url(String.format("https://%s/oauth/token", config.domain)).
       withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).
       post(
         Json.obj(
@@ -64,8 +67,7 @@ object Callback extends Controller {
   }
   
   def getUser(accessToken: String): Future[JsValue] = {
-    val config = Auth0Config.get()
-    val userResponse = WS.url(String.format("https://%s/userinfo", config.domain))(Play.current)
+    val userResponse = ws.url(String.format("https://%s/userinfo", config.domain))
       .withQueryString("access_token" -> accessToken)
       .get()
 

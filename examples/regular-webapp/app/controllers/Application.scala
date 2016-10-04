@@ -3,13 +3,12 @@ package controllers
 import play.api.mvc.Action
 import play.api.mvc.Controller
 import helpers.Auth0Config
+import play.api.Logger
+import javax.inject.Inject
 
-
-
-
-object Application extends Controller {
+class Application @Inject() (config:Auth0Config) extends Controller {
 
   def index = Action {
-    Ok(views.html.index(Auth0Config.get()))
+    Ok(views.html.index(config))
   }
 }
