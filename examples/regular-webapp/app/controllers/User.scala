@@ -5,19 +5,19 @@ import play.api.mvc._
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import play.api.http.{MimeTypes, HeaderNames}
-import play.api.libs.ws.WS
 import play.api.mvc.{Results, Action, Controller}
 import play.api.libs.json._
-import play.api.cache.Cache
-import play.api.Play.current
-import play.mvc.Results.Redirect
+import play.api.cache._
+import play.mvc.Results._
+import javax.inject._
 
 
-object User extends Controller {
+class User @Inject() (cache: CacheApi) extends Controller{
+    
   def AuthenticatedAction(f: Request[AnyContent] => Result): Action[AnyContent] = {
     Action { request =>
-      (request.session.get("idToken").flatMap { idToken =>
-        Cache.getAs[JsValue](idToken + "profile")
+      (request.session.get("idToken").flatMap { idToken => 
+        cache.get[JsObject](idToken + "profile")
       } map { profile =>
         f(request)
       }).orElse {
@@ -28,7 +28,7 @@ object User extends Controller {
   
   def index = AuthenticatedAction { request =>
     val idToken = request.session.get("idToken").get
-    val profile = Cache.getAs[JsValue](idToken + "profile").get
+    val profile = cache.get[JsObject](idToken + "profile").get
     Ok(views.html.user(profile))
   }
 }
