@@ -1,34 +1,28 @@
 package controllers
 
-import play.api._
-import play.api.mvc._
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.http.{MimeTypes, HeaderNames}
-import play.api.mvc.{Results, Action, Controller}
-import play.api.libs.json._
-import play.api.cache._
-import play.mvc.Results._
 import javax.inject._
 
+import play.api.cache._
+import play.api.libs.json._
+import play.api.mvc.{Action, Controller, _}
 
-class User @Inject() (cache: CacheApi) extends Controller{
-    
-  def AuthenticatedAction(f: Request[AnyContent] => Result): Action[AnyContent] = {
-    Action { request =>
-      (request.session.get("idToken").flatMap { idToken => 
-        cache.get[JsObject](idToken + "profile")
-      } map { profile =>
-        f(request)
-      }).orElse {
-        Some(Redirect(routes.Application.index()))
-      }.get
-    }
+object User {
+  def cacheKey(idToken: String): String = s"$idToken profile"
+}
+
+class User @Inject()(cache: CacheApi) extends Controller {
+
+  val goToHomePage: Result = Redirect(routes.Application.index())
+
+  def AuthenticatedAction(f: (Request[AnyContent], JsValue) => Result): Action[AnyContent] = Action { request =>
+    val maybeUser: Option[JsValue] = request
+      .session
+      .get("idToken")
+      .flatMap(idToken => cache.get(User.cacheKey(idToken)))
+
+    maybeUser.fold(goToHomePage)(user => f(request, user))
   }
-  
-  def index = AuthenticatedAction { request =>
-    val idToken = request.session.get("idToken").get
-    val profile = cache.get[JsObject](idToken + "profile").get
-    Ok(views.html.user(profile))
-  }
+
+  def index = AuthenticatedAction { (_, user) => Ok(views.html.user(user)) }
+
 }
