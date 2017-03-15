@@ -1,29 +1,27 @@
-import org.specs2.mutable._
-import org.specs2.runner._
-import org.junit.runner._
-
-import play.api.test._
+import org.scalatestplus.play.PlaySpec
+import org.scalatestplus.play.guice.GuiceOneServerPerSuite
 import play.api.test.Helpers._
+import play.api.test._
 
 /**
- * Add your spec here.
- * You can mock out a whole application including requests, plugins etc.
- * For more information, consult the wiki.
- */
-@RunWith(classOf[JUnitRunner])
-class ApplicationSpec extends Specification {
+  * Add your spec here.
+  * You can mock out a whole application including requests, plugins etc.
+  * For more information, consult the wiki.
+  */
+class ApplicationSpec extends PlaySpec with GuiceOneServerPerSuite {
 
   "Application" should {
 
-    "send 404 on a bad request" in new WithApplication{
-      route(FakeRequest(GET, "/boum")) must beNone
+    "send 404 on a bad request" in  {
+      val result = route(app, FakeRequest(GET, "/boum"))
+      result.map(status) mustBe Some(404)
     }
 
-    "render the index page" in new WithApplication{
-      val home = route(FakeRequest(GET, "/")).get
+    "render the index page" in {
+      val result = route(app, FakeRequest(GET, "/"))
 
-      status(home) must equalTo(OK)
-      contentType(home) must beSome.which(_ == "text/html")
+      result.map(status) mustBe Some(OK)
+      result.flatMap(contentType) mustBe Some("text/html")
     }
   }
 }

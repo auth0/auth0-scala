@@ -1,15 +1,15 @@
 package helpers
 
-import play.api.Play
+import javax.inject.{Inject, Singleton}
 
-case class Auth0Config(secret: String, clientId: String, callbackURL: String, domain: String)
-object Auth0Config {
-  def get() = {
-    Auth0Config(
-          Play.current.configuration.getString("auth0.clientSecret").get,
-          Play.current.configuration.getString("auth0.clientId").get,
-          Play.current.configuration.getString("auth0.callbackURL").get,
-          Play.current.configuration.getString("auth0.domain").get
-    )
-  }
+import play.api.Configuration
+
+@Singleton
+class Auth0Config @Inject()(configuration: Configuration) {
+
+  val secret: String = configuration.getString("auth0.clientSecret").get
+  val clientId: String = configuration.getString("auth0.clientId").get
+  val callbackURL: String = configuration.getString("auth0.callbackURL").get
+  val domain: String = configuration.getString("auth0.domain").get
+
 }

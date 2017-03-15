@@ -1,74 +1,71 @@
 package controllers
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import javax.inject._
 
-import play.api.Play
-import play.api.Play.current
-import play.api.cache.Cache
-import play.api.http.HeaderNames
-import play.api.http.MimeTypes
-import play.api.libs.json.JsValue
-import play.api.libs.json.Json
-import play.api.libs.json.Json.toJsFieldJsValueWrapper
-import play.api.libs.ws.WS
-import play.api.mvc.Action
-import play.api.mvc.Controller
 import helpers.Auth0Config
+import play.api.cache._
+import play.api.http.{HeaderNames, MimeTypes}
+import play.api.libs.json.Json.toJsFieldJsValueWrapper
+import play.api.libs.json.{JsValue, Json, OFormat}
+import play.api.libs.ws.WSClient
+import play.api.mvc.{Action, AnyContent, Controller, Result}
 
-object Callback extends Controller {
-  
-  def callback(codeOpt: Option[String] = None) = Action.async {
-    (for {
-      code <- codeOpt
-    } yield {
-      getToken(code).flatMap { case (idToken, accessToken) =>
-       getUser(accessToken).map { user =>
-          Cache.set(idToken+ "profile", user)
-          Redirect(routes.User.index())
-            .withSession(
-              "idToken" -> idToken,
-              "accessToken" -> accessToken
-            )  
+import scala.concurrent.{ExecutionContext, Future}
+
+case class Tokens(idToken: String, accessToken: String)
+
+object Tokens {
+  implicit val format: OFormat[Tokens] = Json.format[Tokens]
+}
+
+@Singleton
+class Callback @Inject()(
+  cache: CacheApi,
+  ws: WSClient,
+  config: Auth0Config
+)(implicit ec: ExecutionContext) extends Controller {
+
+  val auth0host: String = s"https://${config.domain}"
+  val badRequest: Future[Result] = Future.successful(BadRequest(Json.obj("error" -> "No parameters supplied")))
+
+  def callback(codeOpt: Option[String] = None): Action[AnyContent] = Action.async {
+    def login(code: String): Future[Result] = {
+      val response = for {
+        Tokens(idToken, accessToken) <- getToken(code)
+        user: JsValue <- getUser(accessToken)
+      } yield {
+        cache.set(User.cacheKey(idToken), user)
+        Redirect(routes.User.index()).withSession(
+          "idToken" -> idToken,
+          "accessToken" -> accessToken
+        )
       }
-        
-      }.recover {
-        case ex: IllegalStateException => Unauthorized(ex.getMessage)
-      }  
-    }).getOrElse(Future.successful(BadRequest("No parameters supplied")))
+      response.recover { case _ => Unauthorized("Tokens not sent") }
+    }
+
+    codeOpt.fold(badRequest)(login)
   }
 
-  def getToken(code: String): Future[(String, String)] = {
-    val config = Auth0Config.get()
-    val tokenResponse = WS.url(String.format("https://%s/oauth/token", config.domain))(Play.current).
-      withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON).
-      post(
+  private def getToken(code: String): Future[Tokens] =
+    ws
+      .url(s"$auth0host/token")
+      .withHeaders(HeaderNames.ACCEPT -> MimeTypes.JSON)
+      .post(
         Json.obj(
           "client_id" -> config.clientId,
           "client_secret" -> config.secret,
           "redirect_uri" -> config.callbackURL,
           "code" -> code,
-          "grant_type"-> "authorization_code"
+          "grant_type" -> "authorization_code"
         )
       )
+      .map(_.json.as[Tokens])
 
-    tokenResponse.flatMap { response =>
-      (for {
-        idToken <- (response.json \ "id_token").asOpt[String]
-        accessToken <- (response.json \ "access_token").asOpt[String]
-      } yield {
-        Future.successful((idToken, accessToken)) 
-      }).getOrElse(Future.failed[(String, String)](new IllegalStateException("Tokens not sent")))
-    }
-    
-  }
-  
-  def getUser(accessToken: String): Future[JsValue] = {
-    val config = Auth0Config.get()
-    val userResponse = WS.url(String.format("https://%s/userinfo", config.domain))(Play.current)
+  private def getUser(accessToken: String): Future[JsValue] =
+    ws
+      .url(s"$auth0host/userinfo")
       .withQueryString("access_token" -> accessToken)
       .get()
+      .map(_.json)
 
-    userResponse.flatMap(response => Future.successful(response.json))
-  }
 }
